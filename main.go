@@ -2,10 +2,12 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -51,13 +53,40 @@ func walkDir(dir string, n *sync.WaitGroup, count chan<- int) {
 			n.Add(1)
 			subDir := filepath.Join(dir, e.Name())
 			go walkDir(subDir, n, count)
-		} else {
-			if filepath.Ext(e.Name()) != ".go" {
-				continue
-			}
+			continue
+		}
+		if isSelected(e.Name()) {
 			filename := filepath.Join(dir, e.Name())
 			count <- counting(filename)
 		}
+	}
+}
+
+func isSelected(name string) bool {
+	suffix := getSuffix(*fileType)
+
+	if filepath.Ext(name) != suffix {
+		return false
+	}
+	name = strings.TrimSuffix(name, suffix)
+
+	if *noTesting {
+		cuts := strings.Split(name, "_")
+		if cuts[len(cuts)-1] == "test" {
+			return false
+		}
+	}
+	return true
+}
+
+func getSuffix(fileType string) string {
+	switch fileType {
+	case "go":
+		return ".go"
+	case "c":
+		return ".c"
+	default:
+		return ".go"
 	}
 }
 
@@ -81,6 +110,13 @@ func start() int {
 	return numlines
 }
 
+var fileType = flag.String("f", "go", "默认为go语言")
+var noTesting = flag.Bool("t", false, "默认包含测试文件")
+
 func main() {
-	fmt.Println(start())
+
+	flag.Parse()
+
+	numlines := start()
+	fmt.Printf("一共%d行代码\n", numlines)
 }
